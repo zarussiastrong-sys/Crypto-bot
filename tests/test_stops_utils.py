@@ -45,3 +45,32 @@ def test_stop_schedule_generates_future_points():
         assert item["bars_ahead"] > 0
         assert isinstance(item["projected_stop"], float)
 
+
+def test_trailing_stop_locks_break_even_after_profit():
+    prices = np.array([100.0, 101.0, 102.0, 103.0, 104.0])
+    res = trailing_stop(
+        prices=prices,
+        entry=100.0,
+        atr=2.0,
+        phase=220.0,
+        direction="long",
+        levels=np.array([]),
+        cfg={"TRAIL_BREAK_EVEN_R": 0.5, "TRAIL_BREAK_EVEN_BUFFER_ATR": 0.1},
+    )
+    # Once PnL > 0.5 ATR, stop should be above entry (break-even protection).
+    assert res["stop_price"] >= 100.2
+
+
+def test_trailing_stop_uses_step_ratchet():
+    prices = np.array([100.0, 102.0, 104.0, 106.0, 108.0])
+    res = trailing_stop(
+        prices=prices,
+        entry=100.0,
+        atr=2.0,
+        phase=359.0,  # tiny trail distance, so step ratchet dominates
+        direction="long",
+        levels=np.array([]),
+        cfg={"TRAIL_STEP_R": 0.25, "TRAIL_STEP_LOCK_R": 0.15},
+    )
+    # profit = 8.0 => 16 steps of 0.25R, lock should be at least +4.8 over entry.
+    assert res["stop_price"] >= 104.8

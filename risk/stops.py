@@ -68,7 +68,7 @@ def run(engine_results: dict, prices: np.ndarray, entry_price: float, cfg: dict)
         walras  = engine_results.get("walras", {})
 
         init_s  = initial_stop(entry_price, atr, p_mult * atr_mult, levels, direction)
-        trail_s = trailing_stop(prices, entry_price, atr, phase, direction, levels)
+        trail_s = trailing_stop(prices, entry_price, atr, phase, direction, levels, cfg=cfg)
         emrg_s  = emergency_stop(prices, walras)
         sched   = stop_schedule(phase, entry_price, atr, direction)
 

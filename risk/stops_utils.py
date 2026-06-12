@@ -46,20 +46,50 @@ def initial_stop(entry: float, atr: float, mult: float, levels: np.ndarray, dire
             "atr_distance": round(dist, 4), "stop_type": "initial"}
 
 
-def trailing_stop(prices: np.ndarray, entry: float, atr: float, phase: float,
-                  direction: str, levels: np.ndarray) -> dict:
+def trailing_stop(
+    prices: np.ndarray,
+    entry: float,
+    atr: float,
+    phase: float,
+    direction: str,
+    levels: np.ndarray,
+    cfg: dict | None = None,
+) -> dict:
+    cfg = cfg or {}
+    break_even_r = float(cfg.get("TRAIL_BREAK_EVEN_R", 0.5))
+    break_even_buffer_atr = float(cfg.get("TRAIL_BREAK_EVEN_BUFFER_ATR", 0.10))
+    step_r = float(cfg.get("TRAIL_STEP_R", 0.25))
+    step_lock_r = float(cfg.get("TRAIL_STEP_LOCK_R", 0.15))
+
     trail_dist = atr * max(1.0, (360 - phase) / 360 * 2.5)
+    peak = float(prices.max() if direction == "long" else prices.min())
     if direction == "long":
-        raw = float(prices.max()) - trail_dist
+        raw = peak - trail_dist
+        profit = peak - entry
+        if atr > 0 and profit >= break_even_r * atr:
+            raw = max(raw, entry + break_even_buffer_atr * atr)
+        if atr > 0 and step_r > 0 and step_lock_r > 0:
+            step_count = int(np.floor(profit / (step_r * atr)))
+            if step_count > 0:
+                raw = max(raw, entry + step_count * step_lock_r * atr)
     else:
-        raw = float(prices.min()) + trail_dist
+        raw = peak + trail_dist
+        profit = entry - peak
+        if atr > 0 and profit >= break_even_r * atr:
+            raw = min(raw, entry - break_even_buffer_atr * atr)
+        if atr > 0 and step_r > 0 and step_lock_r > 0:
+            step_count = int(np.floor(profit / (step_r * atr)))
+            if step_count > 0:
+                raw = min(raw, entry - step_count * step_lock_r * atr)
+
     snap = nearest_murray_stop(entry, raw, levels, direction)
     snap = max(snap, entry * (1 - MAX_STOP_PCT)) if direction == "long" \
            else min(snap, entry * (1 + MAX_STOP_PCT))
     locked = (float(prices[-1]) - snap) / float(prices[-1]) * 100
     return {"stop_price": round(snap, 4), "stop_type": "trailing",
             "trail_dist": round(trail_dist, 4), "locked_pct": round(locked, 3),
-            "peak_price": round(float(prices.max() if direction == "long" else prices.min()), 4)}
+            "peak_price": round(peak, 4),
+            "break_even_r": break_even_r, "step_r": step_r, "step_lock_r": step_lock_r}
 
 
 def emergency_stop(prices: np.ndarray, walras: dict) -> dict:

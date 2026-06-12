@@ -32,6 +32,18 @@ POLYGON_API_KEY: str    = os.getenv("POLYGON_API_KEY", "")
 # ── Binance Data Settings ─────────────────────────────────────────────────────
 DEFAULT_SYMBOL: str   = os.getenv("DEFAULT_SYMBOL", "BTCUSDT")
 DEFAULT_INTERVAL: str = os.getenv("DEFAULT_INTERVAL", "1d")
+DATA_PROVIDER: str    = os.getenv("DATA_PROVIDER", "binance").lower().strip()
+MT5_LOGIN: str        = os.getenv("MT5_LOGIN", "")
+MT5_PASSWORD: str     = os.getenv("MT5_PASSWORD", "")
+MT5_SERVER: str       = os.getenv("MT5_SERVER", "")
+MT5_MAGIC: int        = int(os.getenv("MT5_MAGIC", 900001))
+MT5_DEVIATION: int    = int(os.getenv("MT5_DEVIATION", 20))
+MT5_COMMENT: str      = os.getenv("MT5_COMMENT", "temporal_bridge")
+NEWS_FILTER_ENABLED: bool = os.getenv("NEWS_FILTER_ENABLED", "1").strip() not in ("0", "false", "False")
+NEWS_EVENTS_FILE: str = os.getenv("NEWS_EVENTS_FILE", "news_events.json")
+NEWS_BLOCK_BEFORE_MIN: int = int(os.getenv("NEWS_BLOCK_BEFORE_MIN", 30))
+NEWS_BLOCK_AFTER_MIN: int = int(os.getenv("NEWS_BLOCK_AFTER_MIN", 30))
+HIGH_IMPACT_CURRENCIES: list[str] = [x.strip().upper() for x in os.getenv("HIGH_IMPACT_CURRENCIES", "USD,EUR,GBP,JPY").split(",") if x.strip()]
 
 # ── GUI Settings ──────────────────────────────────────────────────────────────
 # Preferred GUI theme: "dark" or "light"
@@ -124,12 +136,24 @@ GAMMA_HEDGE_THRESHOLD: float = -0.02
 # Default hedge ratio when gamma trigger fires.
 DEFAULT_HEDGE_RATIO: float = 0.30   # 30% of position
 
+# Trailing-stop profit lock tuning (in ATR "R" units)
+TRAIL_BREAK_EVEN_R: float = 0.5
+TRAIL_BREAK_EVEN_BUFFER_ATR: float = 0.10
+TRAIL_STEP_R: float = 0.25
+TRAIL_STEP_LOCK_R: float = 0.15
+
 # ── AR Model (Day/Night Inertia) ──────────────────────────────────────────────
 # Order of the autoregressive model.
 AR_ORDER: int = 5
 
 # Weight multiplier applied to overnight sentiment vs intraday.
 NIGHT_SENTIMENT_WEIGHT: float = 1.35
+
+# ── AI Guard (meta-model heuristic controls) ─────────────────────────────────
+AI_MIN_CONFIDENCE: float = float(os.getenv("AI_MIN_CONFIDENCE", 0.52))
+AI_MAX_RISK_SCORE: float = float(os.getenv("AI_MAX_RISK_SCORE", 0.72))
+AI_BASE_POSITION_MULT: float = float(os.getenv("AI_BASE_POSITION_MULT", 0.85))
+AI_MIN_POSITION_MULT: float = float(os.getenv("AI_MIN_POSITION_MULT", 0.20))
 
 # ── Solar Cycle ───────────────────────────────────────────────────────────────
 # Seasonal bias threshold — if solar phase within this many days of
@@ -180,11 +204,11 @@ def validate_config() -> list[str]:
     """
     warnings: list[str] = []
 
-    if not BINANCE_API_KEY or BINANCE_API_KEY == "your_binance_api_key_here":
-        warnings.append("BINANCE_API_KEY is not set. Data fetch will fail.")
-
-    if not BINANCE_API_SECRET or BINANCE_API_SECRET == "your_binance_api_secret_here":
-        warnings.append("BINANCE_API_SECRET is not set. Data fetch will fail.")
+    if DATA_PROVIDER == "binance":
+        if not BINANCE_API_KEY or BINANCE_API_KEY == "your_binance_api_key_here":
+            warnings.append("BINANCE_API_KEY is not set. Data fetch will fail.")
+        if not BINANCE_API_SECRET or BINANCE_API_SECRET == "your_binance_api_secret_here":
+            warnings.append("BINANCE_API_SECRET is not set. Data fetch will fail.")
 
     if DEFAULT_BARS < DOMINANT_CYCLE_BARS * 2:
         warnings.append(
@@ -220,6 +244,18 @@ def build_config() -> dict:
         "POLYGON_API_KEY":      POLYGON_API_KEY,
         "DEFAULT_SYMBOL":        DEFAULT_SYMBOL,
         "DEFAULT_INTERVAL":     DEFAULT_INTERVAL,
+        "DATA_PROVIDER":         DATA_PROVIDER,
+        "MT5_LOGIN":             MT5_LOGIN,
+        "MT5_PASSWORD":          MT5_PASSWORD,
+        "MT5_SERVER":            MT5_SERVER,
+        "MT5_MAGIC":             MT5_MAGIC,
+        "MT5_DEVIATION":         MT5_DEVIATION,
+        "MT5_COMMENT":           MT5_COMMENT,
+        "NEWS_FILTER_ENABLED":   NEWS_FILTER_ENABLED,
+        "NEWS_EVENTS_FILE":      NEWS_EVENTS_FILE,
+        "NEWS_BLOCK_BEFORE_MIN": NEWS_BLOCK_BEFORE_MIN,
+        "NEWS_BLOCK_AFTER_MIN":  NEWS_BLOCK_AFTER_MIN,
+        "HIGH_IMPACT_CURRENCIES": HIGH_IMPACT_CURRENCIES,
         "GUI_THEME":            GUI_THEME,
         "DEFAULT_BARS":         DEFAULT_BARS,
         "VALID_INTERVALS":      VALID_INTERVALS,
@@ -237,8 +273,16 @@ def build_config() -> dict:
         "MAX_POSITION_PCT":     MAX_POSITION_PCT,
         "GAMMA_HEDGE_THRESHOLD": GAMMA_HEDGE_THRESHOLD,
         "DEFAULT_HEDGE_RATIO":   DEFAULT_HEDGE_RATIO,
+        "TRAIL_BREAK_EVEN_R":    TRAIL_BREAK_EVEN_R,
+        "TRAIL_BREAK_EVEN_BUFFER_ATR": TRAIL_BREAK_EVEN_BUFFER_ATR,
+        "TRAIL_STEP_R":          TRAIL_STEP_R,
+        "TRAIL_STEP_LOCK_R":     TRAIL_STEP_LOCK_R,
         "AR_ORDER":             AR_ORDER,
         "NIGHT_SENTIMENT_WEIGHT": NIGHT_SENTIMENT_WEIGHT,
+        "AI_MIN_CONFIDENCE":    AI_MIN_CONFIDENCE,
+        "AI_MAX_RISK_SCORE":    AI_MAX_RISK_SCORE,
+        "AI_BASE_POSITION_MULT": AI_BASE_POSITION_MULT,
+        "AI_MIN_POSITION_MULT": AI_MIN_POSITION_MULT,
         "SOLAR_PROXIMITY_DAYS":  SOLAR_PROXIMITY_DAYS,
         "EXPORT_DIR":           EXPORT_DIR,
         "CHART_DPI":            CHART_DPI,

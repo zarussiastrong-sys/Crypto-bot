@@ -54,7 +54,42 @@ def run(symbol: str, interval: str, bars: int, cfg: dict) -> dict:
         "error":      None,
     }
 
-    api_key    = cfg.get("BINANCE_API_KEY", "")
+    provider = str(cfg.get("DATA_PROVIDER", "binance")).lower().strip()
+
+    if provider == "mt5":
+        try:
+            from broker.mt5_data import fetch_ohlcv
+
+            df = fetch_ohlcv(symbol.upper(), interval, bars)
+            logger.info(
+                "MT5 fetch OK: symbol=%s interval=%s bars=%d %s to %s",
+                symbol.upper(),
+                interval,
+                len(df),
+                df["timestamp"].iloc[0].isoformat(),
+                df["timestamp"].iloc[-1].isoformat(),
+            )
+            return {
+                "success":    True,
+                "symbol":     symbol.upper(),
+                "interval":   interval,
+                "bars":       len(df),
+                "df":         df,
+                "close":      df["close"].to_numpy(dtype=np.float64),
+                "high":       df["high"].to_numpy(dtype=np.float64),
+                "low":        df["low"].to_numpy(dtype=np.float64),
+                "volume":     df["volume"].to_numpy(dtype=np.float64),
+                "timestamps": (df["timestamp"].view("int64") // 10**6).to_numpy(dtype=np.int64),
+                "fetched_at": datetime.now(tz=timezone.utc).isoformat(),
+                "error":      None,
+            }
+        except Exception as exc:
+            msg = f"{type(exc).__name__}: {exc}"
+            logger.exception("MT5 fetch failed: %s", msg)
+            _empty["error"] = msg
+            return _empty
+
+    api_key = cfg.get("BINANCE_API_KEY", "")
     api_secret = cfg.get("BINANCE_API_SECRET", "")
 
     if not api_key or api_key == "your_binance_api_key_here":
@@ -114,6 +149,10 @@ def run(symbol: str, interval: str, bars: int, cfg: dict) -> dict:
 
 def fetch_symbols(cfg: dict, quote_asset: str = "USDT") -> list[str]:
     """Returns sorted active Binance trading pairs. Used by the GUI dropdown."""
+    provider = str(cfg.get("DATA_PROVIDER", "binance")).lower().strip()
+    if provider == "mt5":
+        return [cfg.get("DEFAULT_SYMBOL", "XAUUSD"), "EURUSD", "USOIL", "BTCUSD"]
+
     try:
         client = get_client(
             cfg.get("BINANCE_API_KEY", ""),
