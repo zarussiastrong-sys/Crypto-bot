@@ -23,19 +23,47 @@ import asyncio
 import logging
 import os
 import sys
+import traceback
 from pathlib import Path
 
-from telegram import Update, BotCommand
-from telegram.ext import (
-    Application, ApplicationBuilder, CommandHandler,
-    ContextTypes, filters,
-)
+try:
+    from telegram import Update, BotCommand
+    from telegram.ext import (
+        Application, ApplicationBuilder, CommandHandler,
+        ContextTypes, filters,
+    )
+except ModuleNotFoundError as exc:
+    missing = exc.name or "python-telegram-bot"
+    sys.stderr.write(
+        "\n[ERROR] Telegram dependencies are not installed.\n"
+        f"Missing module: {missing}\n\n"
+        "Install project dependencies first:\n"
+        "  pip install -r requirements.txt\n"
+        "or on Windows:\n"
+        "  .\\setup.ps1\n\n"
+    )
+    raise SystemExit(1)
 
 from bot.bot_commands import (
     cmd_start, cmd_help, cmd_run, cmd_status,
-    cmd_export, cmd_setpair, cmd_alert, cmd_schedule,
+    cmd_export, cmd_run_adv, cmd_status_adv,
+    cmd_export_adv, cmd_setpair, cmd_alert, cmd_schedule,
 )
-from bot.bot_scheduler import BotScheduler
+
+try:
+    from bot.bot_scheduler import BotScheduler
+except ModuleNotFoundError as exc:
+    missing = exc.name or "apscheduler"
+    sys.stderr.write(
+        "\n[ERROR] Scheduler dependencies are not installed.\n"
+        f"Missing module: {missing}\n\n"
+        "Install project dependencies first:\n"
+        "  pip install -r requirements.txt\n"
+        "or on Windows:\n"
+        "  .\\setup.ps1\n\n"
+    )
+    raise SystemExit(1)
+
 from bot.message_builder import build_alert
 
 logger = logging.getLogger("temporal_bot.bot.telegram_bot")
@@ -256,10 +284,26 @@ def main() -> None:
         logger.warning("Config load failed (%s) — using defaults", exc)
 
     # ── Launch ────────────────────────────────────────────────────────────
-    app = build_application(token, cfg, allowed_ids)
-    logger.info("Starting polling…")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    try:
+        app = build_application(token, cfg, allowed_ids)
+        logger.info("Starting polling…")
+        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as exc:
+        logger.exception("Telegram bot failed to start")
+        print(f"\n❌ Startup failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        if os.name == "nt" and not sys.stdin.isatty():
+            print("\nPress Enter to close this window...", file=sys.stderr)
+            try:
+                input()
+            except EOFError:
+                pass
+        raise
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        if os.name == "nt":
+            traceback.print_exc()
+        sys.exit(1)

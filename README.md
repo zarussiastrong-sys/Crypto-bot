@@ -505,6 +505,53 @@ Expected output:
 
 Send `/start` in Telegram to verify the bot is running.
 
+### MT5 mode (FX / Gold / Oil)
+
+If you want to run analysis from MetaTrader 5 data instead of Binance:
+
+```env
+DATA_PROVIDER=mt5
+DEFAULT_SYMBOL=XAUUSD
+DEFAULT_INTERVAL=1m
+```
+
+Then run:
+
+```bash
+python -m bot.mt5_runner --symbol XAUUSD --interval 1m --bars 512 --volume 0.01
+```
+
+By default, this is a **dry-run** (no real order).  
+Use `--live` only when your MT5 terminal/account is configured and connected.
+
+### Run directly from MT5 `Experts` folder (bridge mode)
+
+1. Copy `mt5/experts/TemporalBotBridge.mq5` into your terminal:
+   - `.../MQL5/Experts/TemporalBotBridge.mq5`
+2. Compile in MetaEditor and attach `TemporalBotBridge` to the chart (e.g., `XAUUSD, M1`).
+3. In EA inputs:
+   - `InpAllowLiveOrders=false` for paper mode first
+   - `InpBridgeFolder=temporal_bot`
+   - `InpUseTrailing=true` to lock profit as price moves
+   - `InpTrailStartPoints` / `InpTrailStepPoints` to tune how aggressively profit is protected
+4. Start Python bridge daemon:
+
+```bash
+python -m bot.mt5_bridge_daemon --bridge-dir temporal_bot --poll-sec 1.0
+```
+
+How it works:
+- EA writes request JSON files into `temporal_bot/inbox`.
+- Python daemon reads the request, runs the analysis, writes decision JSON into `temporal_bot/outbox`.
+- EA reads decision and executes `buy`/`sell`/`close` (or `hold` does nothing).
+- EA can auto-trail stop (`InpUseTrailing`) and also auto-flip (close opposite position before opening a new one).
+- Response JSON now also contains `mt5` block (`order_type`, `lot`, `deviation`, `magic`, `comment`) in MT5-friendly format.
+
+News + AI guard:
+- `NEWS_FILTER_ENABLED=1` blocks new entries around high-impact events from `NEWS_EVENTS_FILE` (JSON calendar).
+- `AI_*` controls add a meta-guard that can downgrade volume or force `hold` in low-confidence / high-risk conditions.
+- You can start from `news_events.example.json` and copy it to `news_events.json`.
+
 ### Running as a background service
 
 ```bash
